@@ -420,21 +420,47 @@ input:focus,select:focus,textarea:focus{border-color:var(--sky);box-shadow:0 0 0
 table.mt td.nm{border-radius:10px 0 0 10px}
 table.mt td:last-child{border-radius:0 10px 10px 0}
 
-/* GRAVAITUBE: paleta azul #2196F3, laranja #FF9800, cinza #8C8C8C */
-#studio:has(.st-escolha){background:#FF9800}
-#studio:has(.st-escolha) .st-top{background:#E68900}
-#studio .st-escolha p{color:#fff;font-weight:700}
+/* GRAVAITUBE: estúdio na paleta dourado #F2B138, azul #003F63, cinza #A1A5A6 */
+#studio:has(.st-escolha){background:#F2B138}
+#studio:has(.st-escolha) .st-top{background:#003F63}
+#studio .st-escolha p{color:#003F63;font-weight:700}
 #studio .st-op{background:#fff;border-color:#fff}
-#studio .st-op h3{color:#323338}#studio .st-op span{color:#676879}
-#studio .st-roteiro{background:#8C8C8C;border-color:#ffffff66}
+#studio .st-op h3{color:#003F63}#studio .st-op span{color:#3F5566}
+#studio .st-roteiro{background:#A1A5A6;border-color:#ffffff66}
 #studio .st-roteiro small{color:#fff}#studio .st-roteiro b{color:#fff}#studio .st-roteiro span{color:#f1f1f1}
-.modo-tele .st-stage,.st-stage.modo-tele{background:#8C8C8C}
-.modo-tele.com-texto .st-texto{background:#8C8C8C}
-.modo-tele.com-cam.pip-fundo .st-texto,.modo-camera.com-texto .st-texto{background:rgba(140,140,140,var(--op))}
+.modo-tele .st-stage,.st-stage.modo-tele{background:#A1A5A6}
+.modo-tele.com-texto .st-texto{background:#A1A5A6}
+.modo-tele.com-cam.pip-fundo .st-texto,.modo-camera.com-texto .st-texto{background:rgba(161,165,166,var(--op))}
 .modo-tele .st-conteudo,.modo-camera .st-conteudo{text-shadow:0 1px 3px rgba(0,0,0,.55)}
-.st-novo input,.st-novo textarea,#stCola,#nrTxt{background:#8C8C8C!important;color:#fff!important;border-color:#767676!important}
+.st-novo input,.st-novo textarea,#stCola,#nrTxt{background:#A1A5A6!important;color:#fff!important;border-color:#003F63!important}
 .st-novo input::placeholder,.st-novo textarea::placeholder,#stCola::placeholder,#nrTxt::placeholder{color:#ffffffb3}
-#eRoteiro,#eGancho{background:#8C8C8C1F;border-color:#8C8C8C}
+#eRoteiro,#eGancho{background:#A1A5A61F;border-color:#A1A5A6}
+
+/* ===== GRAVAITUBE v6.1.0: paleta cinza #A1A5A6, azul #003F63, dourado #F2B138 e branco ===== */
+:root{ --bg:#A1A5A6; --surface:#FFFFFF; --row:#F4F5F5; --row2:#E9EBEB; --line:#D5D8D9; --txt:#003F63; --mut:#3F5566;
+  --blue:#003F63; --sky:#003F63; --sky2:#003F63; --navy:#003F63; --acc:#F2B138; --acc2:#F2B138; }
+html,body{background:#A1A5A6}
+header.top{background:#A1A5A6;border-bottom:1px solid rgba(0,63,99,.18)}
+h1,h2,h3,.card h2,.card h3,.title-row h2,.mh h2{color:#003F63}
+.hrow h1 .marca{background:none;-webkit-text-fill-color:#003F63;color:#003F63}
+.hrow h1 .pro{color:#F2B138;-webkit-text-stroke:1.2px #003F63;paint-order:stroke fill}
+.hrow h1 small{color:#003F63}
+img.logo,.inst-logo{box-shadow:0 4px 12px rgba(0,63,99,.35)}
+.tabs{background:#003F63;box-shadow:0 6px 18px rgba(0,63,99,.35)}
+.tabs button{color:#FFFFFF}
+.tabs button.on{background:#F2B138;color:#003F63}
+.tseta{color:#003F63}
+.card{border:1px solid #D5D8D9;box-shadow:0 6px 20px rgba(0,63,99,.12)}
+.btn{border-color:#C9CDCE;color:#003F63}
+.btn:hover{border-color:#003F63}
+.btn.acc,.fab{background:#F2B138;color:#003F63;box-shadow:0 6px 16px rgba(0,63,99,.28)}
+.chip{border-color:#C9CDCE;color:#003F63}
+.chip.on{border-color:#003F63;background:#F2B138;color:#003F63}
+input[type=text],input[type=date],input[type=time],input[type=number],input[type=search],input[type=url],select,textarea{border-color:#C9CDCE;color:#003F63}
+input:focus,select:focus,textarea:focus{border-color:#003F63;box-shadow:0 0 0 3px rgba(242,177,56,.45)}
+.nnum{color:#003F63;background:#F2B138}
+.passo b.n{background:#003F63}
+.dev.on{background:#FDF3DE}
 </style>
 </head>
 <body class="dev-celular">
@@ -475,14 +501,14 @@ table.mt td:last-child{border-radius:0 10px 10px 0}
    GRAVAITUBE v3 — arquivo único, 100% offline
    Dados ficam no aparelho (IndexedDB). Sem servidor, sem custo.
    ========================================================= */
-var APP_VER = '6.0.0';
+var APP_VER = '6.1.0';
 var EDICAO = 'anderson'; // 'anderson' = app do Anderson · 'cliente' = versão de venda (gerada por gerar_pro.py)
 var URL_APP = 'https://gravaitube.github.io/';
 var DB_NAME = 'SOCIAL_IMOB_360_PRO';
 var DB_VER = 1; // nunca aumentar: protege os dados já salvos
 var ETAPAS = ['Produção','Revisão','Agendado','Publicado'];
 function etapaUnica(e){ return (e==='Ideia'||e==='Roteiro'||!e) ? 'Produção' : e; }
-var ETAPA_COR = {'Ideia':'#FDAB3D','Roteiro':'#FDAB3D','Produção':'#FDAB3D','Revisão':'#579BFC','Agendado':'#333333','Publicado':'#00C875'};
+var ETAPA_COR = {'Ideia':'#F2B138','Roteiro':'#F2B138','Produção':'#F2B138','Revisão':'#A1A5A6','Agendado':'#003F63','Publicado':'#003F63'};
 var FORMATOS = ['Reel','Post','Carrossel','Story','YouTube','Shorts','Vídeo curto','Documento','Post GMN','Artigo'];
 var OBJETIVOS = ['Autoridade','Educação','Engajamento','Lead','Venda'];
 var REDES = {
@@ -663,8 +689,8 @@ function criarPerfil(d){
 }
 function corRede(r){ return (REDES[r]||{cor:'#9AA0AA'}).cor; }
 function redeDe(c){ return c.rede || (c.formato==='YouTube'||c.formato==='Shorts' ? 'YouTube' : c.formato==='Post GMN' ? 'Google' : 'Instagram'); }
-function pill(txt, cor, cls){ var light = cor==='#C4C4C4' || cor==='#FDAB3D' || cor==='#FFCC80'; return '<span class="pill '+(cls||'')+(light?' light':'')+'" style="background:'+cor+'">'+esc(txt)+'</span>'; }
-function pillH(ic, txt, cor){ var light = cor==='#C4C4C4' || cor==='#FDAB3D' || cor==='#FFCC80'; return '<span class="pill ph'+(light?' light':'')+'" style="background:'+cor+'" title="'+esc(txt)+'"><i>'+esc(ic||'')+'</i><span class="rt">'+esc(txt)+'</span></span>'; }
+function pill(txt, cor, cls){ var light = cor==='#C4C4C4' || cor==='#FDAB3D' || cor==='#FFCC80' || cor==='#F2B138' || cor==='#A1A5A6'; return '<span class="pill '+(cls||'')+(light?' light':'')+'" style="background:'+cor+'">'+esc(txt)+'</span>'; }
+function pillH(ic, txt, cor){ var light = cor==='#C4C4C4' || cor==='#FDAB3D' || cor==='#FFCC80' || cor==='#F2B138' || cor==='#A1A5A6'; return '<span class="pill ph'+(light?' light':'')+'" style="background:'+cor+'" title="'+esc(txt)+'"><i>'+esc(ic||'')+'</i><span class="rt">'+esc(txt)+'</span></span>'; }
 function pillEtapa(c, sm){ var e = atrasado(c) ? 'Atrasado' : c.etapa; return pill(e, atrasado(c) ? '#E2445C' : ETAPA_COR[c.etapa], sm?'sm':''); }
 function copiar(txt){
   if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){ toast('Copiado ✔'); }, function(){ copiarFallback(txt); }); }
@@ -3274,7 +3300,7 @@ function vPlanilha(){
   var aPub = lst.filter(function(c){ return c.etapa!=='Publicado'; }).length;
   s += '<div class="grid2" style="margin-bottom:14px"><div class="card" style="margin:0"><h3>Conteúdos por rede</h3>'+
     (Object.keys(porRede).length ? Object.keys(porRede).map(function(r){ return '<div class="row" style="margin:4px 0">'+pill(r, corRede(r))+'<b style="margin-left:auto">'+porRede[r]+'</b></div>'; }).join('') : '<div class="empty">—</div>')+
-    '</div><div class="card" style="margin:0"><h3>Situação</h3><div class="row" style="margin:4px 0">'+pill('A publicar','#7E3B8A')+'<b style="margin-left:auto">'+aPub+'</b></div><div class="row" style="margin:4px 0">'+pill('Publicados','#00C875')+'<b style="margin-left:auto">'+(lst.length-aPub)+'</b></div><div class="row" style="margin:4px 0">'+pill('Atrasados','#E2445C')+'<b style="margin-left:auto">'+lst.filter(atrasado).length+'</b></div></div></div>';
+    '</div><div class="card" style="margin:0"><h3>Situação</h3><div class="row" style="margin:4px 0">'+pill('A publicar','#003F63')+'<b style="margin-left:auto">'+aPub+'</b></div><div class="row" style="margin:4px 0">'+pill('Publicados','#F2B138')+'<b style="margin-left:auto">'+(lst.length-aPub)+'</b></div><div class="row" style="margin:4px 0">'+pill('Atrasados','#A1A5A6')+'<b style="margin-left:auto">'+lst.filter(atrasado).length+'</b></div></div></div>';
   ETAPAS.forEach(function(e){
     var cs = lst.filter(function(c){ return c.etapa===e; }).sort(ordemData);
     if(!cs.length) return;
