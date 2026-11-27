@@ -501,7 +501,7 @@ input:focus,select:focus,textarea:focus{border-color:#003F63;box-shadow:0 0 0 3p
    GRAVAITUBE v3 — arquivo único, 100% offline
    Dados ficam no aparelho (IndexedDB). Sem servidor, sem custo.
    ========================================================= */
-var APP_VER = '6.1.0';
+var APP_VER = '6.2.0';
 var EDICAO = 'anderson'; // 'anderson' = app do Anderson · 'cliente' = versão de venda (gerada por gerar_pro.py)
 var URL_APP = 'https://gravaitube.github.io/';
 var DB_NAME = 'SOCIAL_IMOB_360_PRO';
@@ -941,7 +941,7 @@ function textoFala(t){
 function textoGravacao(c){ var r = textoFala(semNotas(c.roteiro)); return [comecaCom(r, c.gancho) ? '' : String(c.gancho||'').trim(), r, (c.cta && r.indexOf(c.cta)<0) ? String(c.cta).trim() : ''].filter(Boolean).join('\n\n'); }
 function abrirEstudio(c, modo){
   cfgEst();
-  EST.conteudo = c || null; EST.tela = null; if(c) EST.avulso = null; EST.titulo = c ? (c.titulo||'Sem título') : (EST.avulso && EST.txt ? EST.titulo : 'Gravação livre'); EST.txt = c ? textoGravacao(c) : (EST.txt||'');
+  EST.conteudo = c || null; EST.tela = null; if(c) marcarAcesso(c); if(c) EST.avulso = null; EST.titulo = c ? (c.titulo||'Sem título') : (EST.avulso && EST.txt ? EST.titulo : 'Gravação livre'); EST.txt = c ? textoGravacao(c) : (EST.txt||'');
   EST.pos = 0; EST.rolando = false;
   var st = $('#studio'); st.classList.add('on'); document.body.classList.add('no-scroll'); navPush('studio');
   try{ if(navigator.wakeLock) navigator.wakeLock.request('screen').then(function(w){ EST.wake = w; }).catch(function(){}); }catch(e){}
@@ -1254,7 +1254,7 @@ function desenharBib(){
   $all('[data-bibdel]', ls).forEach(function(el){ el.onclick = function(ev){ ev.stopPropagation(); var a = roteirosAvulsos().filter(function(r){ return r.id===el.dataset.bibdel; })[0]; if(!a || !confirm('Excluir o roteiro avulso "'+a.titulo+'"? Esta ação não pode ser desfeita.')) return; S.cfg.roteiros = roteirosAvulsos().filter(function(r){ return r.id!==a.id; }); if(EST.avulso===a.id){ EST.avulso = null; } salvarCfg(); telaBiblioteca(); toast('Roteiro excluído'); }; });
 }
 function usarRoteiro(tipo, id){
-  if(tipo==='c'){ var x = S.conteudos.filter(function(y){ return y.id===id; })[0]; if(!x) return; EST.conteudo = x; EST.avulso = null; EST.titulo = x.titulo||'Sem título'; EST.txt = textoGravacao(x); }
+  if(tipo==='c'){ var x = S.conteudos.filter(function(y){ return y.id===id; })[0]; if(!x) return; marcarAcesso(x); EST.conteudo = x; EST.avulso = null; EST.titulo = x.titulo||'Sem título'; EST.txt = textoGravacao(x); }
   else { var a = roteirosAvulsos().filter(function(r){ return r.id===id; })[0]; if(!a) return; EST.conteudo = null; EST.avulso = a.id; EST.titulo = a.titulo||'Roteiro avulso'; EST.txt = a.texto||''; }
   EST.pos = 0; voltarDaBiblioteca(); toast('Roteiro carregado ✔');
 }
@@ -1548,9 +1548,135 @@ function refazerGlobal(){ var h = HIST.refazer.pop(); if(!h) return; if(h.lote){
 function atualizarBotoesHist(){ var u=$('#btnDesfazer'), r=$('#btnRefazer'); if(u) u.disabled = !HIST.desfazer.length; if(r) r.disabled = !HIST.refazer.length; }
 function toastAcao(msg, rot, fn){ var t = $('#toast'); toast(msg); if(!t) return; var b = document.createElement('button'); b.className='btn sm'; b.style.marginLeft='10px'; b.textContent=rot; b.onclick=function(){ fn(); t.classList.remove('on'); }; t.appendChild(b); }
 
+/* ===== v6.2 · Confirmação dentro do app (sem digitar), exclusão em lote e as skills de limpeza ===== */
+/* Confirmação por dois toques: funciona igual no celular, tablet e PC (o teclado do Android não atrapalha). */
+function confirmarApp(o){
+  return new Promise(function(res){
+    var volta = o.voltar || null;
+    abrirModal('<div class="mh"><h2>'+(o.titulo||'Confirmar')+'</h2></div>'+
+      '<p class="sub" style="font-size:15px">'+(o.texto||'')+'</p>'+(o.extra||'')+
+      '<div class="row" style="margin-top:14px;gap:8px;flex-wrap:wrap"><button class="btn" id="cfNao" style="flex:1">Cancelar</button><button class="btn red" id="cfSim" style="flex:2">'+(o.botao||'Confirmar')+'</button></div>'+
+      '<p class="hint" id="cfDica">'+(o.dica||'Toque duas vezes no botão vermelho para confirmar.')+'</p>');
+    var armado = false, sim = $('#cfSim'), t = null, fim = function(v){ clearTimeout(t); if(!v && volta){ volta(); } else if(!v) fecharModal(); res(v); };
+    $('#cfNao').onclick = function(){ fim(false); };
+    sim.onclick = function(){
+      if(!armado){ armado = true; sim.textContent = '⚠️ Toque de novo para confirmar'; $('#cfDica').textContent = 'Toque mais uma vez em até 5 segundos.'; t = setTimeout(function(){ armado = false; sim.textContent = o.botao||'Confirmar'; $('#cfDica').textContent = o.dica||'Toque duas vezes no botão vermelho para confirmar.'; }, 5000); return; }
+      sim.disabled = true; sim.textContent = 'Excluindo…'; fim(true);
+    };
+  });
+}
+/* Lixeira leve: guarda o conteúdo sem o histórico; no máximo 300 itens; os excluídos pela validade automática ficam 7 dias. */
+function itemLixeira(c, auto){ var x = JSON.parse(JSON.stringify(c)); x.historico = (x.historico||[]).slice(0,3); return {em:Date.now(), auto:!!auto, item:x}; }
+function lixeiraLimpa(){ S.cfg.lixeira = (S.cfg.lixeira||[]).filter(function(x){ return Date.now()-x.em < (x.auto ? 7 : 30)*864e5; }).slice(0, 300); return S.cfg.lixeira; }
+/* Exclui vários conteúdos numa única gravação (rápido mesmo com centenas). */
+function excluirLote(lista, op){
+  op = op || {};
+  var ids = {}; lista.forEach(function(c){ ids[c.id] = 1; });
+  var ligados = S.conteudos.filter(function(x){ return !ids[x.id] && ((x.youtubeId && ids[x.youtubeId]) || (x.origemId && ids[x.origemId])); });
+  ligados.forEach(function(x){ if(ids[x.youtubeId]) x.youtubeId = ''; if(ids[x.origemId]) x.origemId = ''; });
+  if(op.lixeira !== false){ var novos = lista.map(function(c){ return itemLixeira(c, op.auto); }); S.cfg.lixeira = novos.concat(S.cfg.lixeira||[]); }
+  lixeiraLimpa();
+  return new Promise(function(res, rej){
+    var tx = db.transaction(['conteudos','config'], 'readwrite'), st = tx.objectStore('conteudos');
+    Object.keys(ids).forEach(function(id){ st.delete(id); });
+    ligados.forEach(function(x){ st.put(x); });
+    tx.objectStore('config').put({k:'main', v:S.cfg});
+    tx.oncomplete = function(){ res(); }; tx.onerror = function(){ rej(tx.error); };
+  }).then(function(){ S.conteudos = S.conteudos.filter(function(x){ return !ids[x.id]; }); return lista.length; });
+}
+/* Marca o último acesso sem mexer na data de atualização. */
+function marcarAcesso(c){ if(!c || !c.id || !S.conteudos.some(function(x){ return x.id===c.id; })) return; c.acessoEm = new Date().toISOString(); gravar('conteudos', [c]).catch(function(){}); }
+
+/* ---- Skill 1: VALIDADE AUTOMÁTICA — conteúdo parado há X dias (padrão 14), sem acesso e sem postar, vai para a lixeira ---- */
+function cfgFaxina(){ if(!S.cfg.faxina) S.cfg.faxina = {auto:true, dias:14, ultima:'', log:[]}; return S.cfg.faxina; }
+function ultimoToque(c){ return [c.acessoEm, c.atualizadoEm, c.criadoEm].filter(Boolean).sort().pop() || ''; }
+function diasParado(c){ var u = ultimoToque(c); return u ? Math.floor((Date.now() - new Date(u).getTime()) / 864e5) : 0; }
+function protegido(c){
+  if(c.etapa === 'Publicado' || c.link || c.youtubeId && /^[\w-]{11}$/.test(c.youtubeId)) return 'publicado';
+  if(c.perene) return 'perene';
+  if(c.data && c.data >= hoje()) return 'agendado';
+  return '';
+}
+function parados(dias){ return S.conteudos.filter(function(c){ return !protegido(c) && diasParado(c) >= dias; }); }
+function rodarValidade(manual){
+  var f = cfgFaxina(); if(!manual && (!f.auto || f.ultima === hoje())) return Promise.resolve(0);
+  var l = parados(f.dias || 14);
+  f.ultima = hoje();
+  if(!l.length){ return salvarCfg().then(function(){ if(manual) toast('Nada parado há '+f.dias+' dias ou mais ✔'); return 0; }); }
+  return excluirLote(l, {lixeira:true, auto:true}).then(function(n){
+    f.log = [{data:hoje(), n:n}].concat(f.log||[]).slice(0, 15); return salvarCfg().then(function(){ return n; });
+  }).then(function(n){ render(); toastAcao('🧹 '+n+' conteúdo'+(n>1?'s parados':' parado')+' há '+f.dias+'+ dias '+(n>1?'foram':'foi')+' para a lixeira (7 dias)', 'Ver', telaLixeira); return n; });
+}
+
+/* ---- Skill 2: FAXINEIRA — monitor de peso e limpeza, com exclusão por seleção ---- */
+var FX = {f:'todos', q:'', sel:{}};
+function chaveDup(c){ return norm(c.titulo)+'|'+(c.perfil||'')+'|'+norm(c.formato); }
+function duplicados(){ var g = {}, out = []; S.conteudos.forEach(function(c){ var k = chaveDup(c); if(!norm(c.titulo)) return; (g[k] = g[k]||[]).push(c); });
+  Object.keys(g).forEach(function(k){ var l = g[k]; if(l.length < 2) return; l.sort(function(a,b){ return ultimoToque(b).localeCompare(ultimoToque(a)); }); out = out.concat(l.slice(1)); }); return out; }
+function vazio(c){ return !String(c.roteiro||'').trim() && !String(c.legenda||'').trim() && !String(c.gancho||'').trim(); }
+function pesoKB(o){ try{ return Math.round(JSON.stringify(o).length / 1024); }catch(e){ return 0; } }
+function fmtKB(k){ return k > 1024 ? (k/1024).toFixed(1)+' MB' : k+' KB'; }
+function listaFaxina(){
+  var f = cfgFaxina(), q = norm(FX.q), base;
+  if(FX.f==='parados') base = parados(Math.max(1, (f.dias||14) - 7));
+  else if(FX.f==='vazios') base = S.conteudos.filter(vazio);
+  else if(FX.f==='dup') base = duplicados();
+  else if(FX.f==='pub') base = S.conteudos.filter(function(c){ return protegido(c)==='publicado'; });
+  else base = S.conteudos.slice();
+  if(q) base = base.filter(function(c){ return norm(c.titulo+' '+c.roteiro).indexOf(q) >= 0; });
+  return base.sort(function(a,b){ return diasParado(b) - diasParado(a); });
+}
+function telaFaxina(){
+  var f = cfgFaxina(), dup = duplicados().length, vaz = S.conteudos.filter(vazio).length, par = parados(f.dias||14).length, logo = parados(Math.max(1,(f.dias||14)-7)).length;
+  var lix = lixeiraLimpa(), pc = pesoKB(S.conteudos), pl = pesoKB(lix);
+  var chip = function(k, t){ return '<button class="btn sm'+(FX.f===k?' acc':'')+'" data-fxf="'+k+'">'+t+'</button>'; };
+  abrirModal('<div class="mh"><h2>🧹 Faxina e validade</h2><button class="btn sm ghost x" data-act="fechar">✕</button></div>'+
+    '<div class="grid2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:6px 0 12px">'+
+      [['📄','Conteúdos',S.conteudos.length],['⚖️','Peso dos conteúdos',fmtKB(pc)],['⏳','Parados '+(f.dias||14)+'+ dias',par],['🧩','Duplicados',dup],['🫥','Sem texto',vaz],['🗑️','Na lixeira',lix.length+' · '+fmtKB(pl)]]
+      .map(function(x){ return '<div class="card" style="margin:0;padding:10px"><div style="font-size:20px">'+x[0]+'</div><b style="font-size:20px">'+x[2]+'</b><div class="m">'+x[1]+'</div></div>'; }).join('')+'</div>'+
+    '<div class="card" style="margin:0 0 12px;padding:12px"><b>⏳ Validade automática</b><p class="sub" style="margin:4px 0 8px">Ao abrir o app (uma vez por dia), o que está parado há '+(f.dias||14)+' dias ou mais, <b>sem acesso e sem postar</b>, vai para a lixeira e some de vez em 7 dias. Ficam protegidos: publicados, com link, agendados para hoje em diante e perenes.</p>'+
+      '<label class="row" style="gap:8px;align-items:center"><input type="checkbox" id="fxAuto" '+(f.auto?'checked':'')+'> Ligada</label> '+
+      '<label class="row" style="gap:8px;align-items:center;margin-top:6px">Prazo <select id="fxDias">'+[7,14,21,30,60].map(function(d){ return '<option value="'+d+'"'+(d===(f.dias||14)?' selected':'')+'>'+d+' dias</option>'; }).join('')+'</select></label>'+
+      '<div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap"><button class="btn sm" data-act="fxRodar">▶ Rodar agora</button><button class="btn sm" data-act="lixeira">🗑️ Abrir lixeira</button>'+(lix.length?'<button class="btn sm red" data-act="fxEsvaziar">Esvaziar lixeira</button>':'')+'</div>'+
+      ((f.log||[]).length ? '<p class="hint">Últimas faxinas: '+f.log.slice(0,5).map(function(x){ return x.data.split('-').reverse().join('/')+' ('+x.n+')'; }).join(' · ')+'</p>' : '')+
+      (logo > par ? '<p class="hint">⚠️ '+(logo-par)+' conteúdos entram na validade nos próximos 7 dias. Abra ou poste para mantê-los.</p>' : '')+'</div>'+
+    '<b>Excluir conteúdos</b><div class="row" style="gap:6px;flex-wrap:wrap;margin:8px 0">'+chip('todos','Todos')+chip('parados','Parados')+chip('vazios','Sem texto')+chip('dup','Duplicados')+chip('pub','Publicados')+'</div>'+
+    '<input id="fxBusca" placeholder="🔍 Buscar pelo título ou texto" value="'+esc(FX.q)+'" style="width:100%">'+
+    '<div class="row" style="gap:8px;margin:8px 0;flex-wrap:wrap"><button class="btn sm" data-act="fxTodos">☑️ Marcar todos da lista</button><button class="btn sm" data-act="fxNenhum">Desmarcar</button><button class="btn red" data-act="fxExcluir" id="fxBtn" style="flex:1">🗑️ Excluir selecionados (0)</button></div>'+
+    '<div class="list" id="fxLista"></div>');
+  $all('#modal [data-fxf]').forEach(function(b){ b.onclick = function(){ FX.f = b.dataset.fxf; FX.sel = {}; telaFaxina(); }; });
+  $('#fxBusca').oninput = function(){ FX.q = this.value; desenharFaxina(); };
+  $('#fxAuto').onchange = function(){ f.auto = this.checked; salvarCfg(); toast(f.auto ? 'Validade automática ligada' : 'Validade automática desligada'); };
+  $('#fxDias').onchange = function(){ f.dias = +this.value; f.ultima = ''; salvarCfg().then(telaFaxina); };
+  desenharFaxina();
+}
+function desenharFaxina(){
+  var l = listaFaxina(), box = $('#fxLista'); if(!box) return;
+  box.innerHTML = l.length ? l.slice(0, 400).map(function(c){ var p = perfil(c.perfil), pr = protegido(c), d = diasParado(c);
+    return '<label class="it" style="cursor:pointer"><input type="checkbox" data-fx="'+esc(c.id)+'" '+(FX.sel[c.id]?'checked':'')+' style="width:22px;height:22px;flex:none"><i class="dot" style="background:'+p.cor+'"></i><div class="grow"><div class="t">'+esc(c.titulo||'(sem título)')+'</div><div class="m">'+esc(p.arroba)+' · '+esc(c.formato||'')+' · '+esc(c.etapa||'')+' · '+(d ? d+' dia'+(d>1?'s':'')+' sem mexer' : 'mexido hoje')+(pr ? ' · 🔒 '+pr : '')+(vazio(c)?' · sem texto':'')+'</div></div></label>'; }).join('') + (l.length > 400 ? '<p class="hint">Mostrando 400 de '+l.length+'. "Marcar todos da lista" marca todos os '+l.length+'.</p>' : '')
+    : '<p class="sub" style="text-align:center;margin:20px 0">Nada aqui ✔</p>';
+  $all('#fxLista [data-fx]').forEach(function(i){ i.onchange = function(){ if(i.checked) FX.sel[i.dataset.fx] = 1; else delete FX.sel[i.dataset.fx]; contarFaxina(); }; });
+  contarFaxina();
+}
+function contarFaxina(){ var b = $('#fxBtn'); if(b){ var n = Object.keys(FX.sel).length; b.textContent = '🗑️ Excluir selecionados ('+n+')'; b.disabled = !n; } }
+function acaoFaxina(a){
+  if(a==='faxina'){ FX.sel = {}; telaFaxina(); return true; }
+  if(a==='fxTodos'){ listaFaxina().forEach(function(c){ FX.sel[c.id] = 1; }); desenharFaxina(); return true; }
+  if(a==='fxNenhum'){ FX.sel = {}; desenharFaxina(); return true; }
+  if(a==='fxRodar'){ rodarValidade(true).then(function(){ telaFaxina(); }); return true; }
+  if(a==='fxEsvaziar'){ var nl = lixeiraLimpa().length; confirmarApp({titulo:'🗑️ Esvaziar a lixeira', texto:'Apagar de vez os <b>'+nl+'</b> itens da lixeira? Depois não dá para restaurar.', botao:'Esvaziar lixeira', voltar:telaFaxina}).then(function(ok){ if(!ok) return; S.cfg.lixeira = []; salvarCfg().then(function(){ toast('Lixeira esvaziada'); telaFaxina(); }); }); return true; }
+  if(a==='fxExcluir'){
+    var ids = FX.sel, l = S.conteudos.filter(function(c){ return ids[c.id]; }); if(!l.length) return true;
+    var pub = l.filter(function(c){ return protegido(c)==='publicado'; }).length;
+    confirmarApp({titulo:'🗑️ Excluir '+l.length+' conteúdo'+(l.length>1?'s':''), texto:'Vão para a lixeira e ficam lá por 30 dias (dá para restaurar).'+(pub ? ' <b>'+pub+' já publicado'+(pub>1?'s':'')+'</b> está'+(pub>1?'ão':'')+' na seleção.' : ''), botao:'Excluir '+l.length, voltar:telaFaxina})
+      .then(function(ok){ if(!ok) return; excluirLote(l, {lixeira:true}).then(function(n){ FX.sel = {}; render(); toast(n+' conteúdo'+(n>1?'s':'')+' excluído'+(n>1?'s':'')+' ✔'); telaFaxina(); }); });
+    return true;
+  }
+  return false;
+}
 /* lixeira: excluídos ficam 30 dias */
-function lixeira(){ S.cfg.lixeira = (S.cfg.lixeira||[]).filter(function(x){ return Date.now()-x.em < 30*864e5; }); return S.cfg.lixeira; }
-function paraLixeira(c){ lixeira().unshift({em:Date.now(), item:JSON.parse(JSON.stringify(c))}); return salvarCfg(); }
+function lixeira(){ return lixeiraLimpa(); }
+function paraLixeira(c){ lixeira().unshift(itemLixeira(c, false)); return salvarCfg(); }
 function tirarDaLixeira(id){ S.cfg.lixeira = lixeira().filter(function(x){ return x.item.id!==id; }); return salvarCfg(); }
 function excluirConteudo(c){
   registrarHist(c, null, 'exclusão de "'+c.titulo+'"');
@@ -1712,7 +1838,7 @@ function telaRevisarAtrasados(){
   $all('#modal [data-ra]').forEach(function(b){ b.onclick = function(){ var ids = sel(); if(!ids.length){ toast('Selecione pelo menos um'); return; }
     var k = b.dataset.ra, lst = ids.map(pega).filter(Boolean), ps;
     if(k==='pubSel') ps = lst.reduce(function(q,c){ return q.then(function(){ return publicar(c); }); }, Promise.resolve());
-    if(k==='delSel'){ if(!confirm('Mover '+lst.length+' conteúdos para a lixeira? Ficam lá por 30 dias.')) return; ps = lst.reduce(function(q,c){ return q.then(function(){ return excluirConteudo(c); }); }, Promise.resolve()); }
+    if(k==='delSel'){ if(!confirm('Mover '+lst.length+' conteúdos para a lixeira? Ficam lá por 30 dias.')) return; ps = excluirLote(lst, {lixeira:true}); }
     if(k==='reagSel'){ var porPerfil = {}; ps = lst.reduce(function(q,c){ return q.then(function(){ var a = JSON.parse(JSON.stringify(c)), d = porPerfil[c.perfil] || addDias(hoje(),1); while(S.conteudos.some(function(x){ return x.perfil===c.perfil && x.data===d && x.id!==c.id; })) d = addDias(d,1); porPerfil[c.perfil] = addDias(d,1); registrar(c,'Reagendado de '+dataBR(c.data)+' para '+dataBR(d)); c.data = d; registrarHist(a,c,'reagendar'); return salvarConteudo(c); }); }, Promise.resolve()); }
     ps.then(function(){ toast(lst.length+' atualizados ✔'); telaRevisarAtrasados(); render(); });
   }; });
@@ -2980,18 +3106,20 @@ function apagarVideo(id){ return vTx('readwrite', function(st){ st.delete(id); }
 function recomecarLimpeza(modo){
   var n = S.conteudos.length;
   if(!n){ toast('Não há conteúdos para limpar'); return; }
-  if(!confirm((modo==='tudo' ? 'EXCLUIR os '+n+' conteúdos' : 'APAGAR roteiro, gancho e descrição dos '+n+' conteúdos')+'? Um backup completo será baixado antes.')) return;
-  var t = prompt('Para confirmar, digite LIMPAR'); if(String(t||'').trim().toUpperCase()!=='LIMPAR'){ toast('Cancelado: nada foi apagado'); return; }
-  baixar('social-imob-backup-antes-de-limpar-'+hoje()+'.json', backupJSON(), 'application/json');
-  var fim = function(msg){ S.cfg.roteiros = []; S.cfg.seedNotion = true; return salvarCfg().then(function(){ toast(msg); render(); }); };
-  if(modo==='tudo'){
-    var ids = S.conteudos.map(function(c){ return c.id; });
-    var tx = ids.reduce(function(q,id){ return q.then(function(){ return apagar('conteudos', id); }); }, Promise.resolve());
-    tx.then(function(){ S.conteudos = []; S.cfg.lixeira = []; return fim('Todos os conteúdos foram excluídos ('+n+')'); });
-  } else {
-    S.conteudos.forEach(function(c){ c.roteiro = ''; c.gancho = ''; c.legenda = ''; registrar(c, 'Textos limpos para recomeçar'); });
-    gravar('conteudos', S.conteudos).then(function(){ return fim('Textos limpos em '+n+' conteúdos'); });
-  }
+  confirmarApp({titulo: modo==='tudo' ? '🧹 Excluir todos os conteúdos' : '🧹 Limpar os textos',
+    texto: (modo==='tudo' ? 'Excluir os <b>'+n+'</b> conteúdos deste aparelho' : 'Apagar roteiro, gancho e descrição dos <b>'+n+'</b> conteúdos')+'. Antes, o app baixa um backup completo para a pasta Downloads.',
+    botao: modo==='tudo' ? 'Excluir '+n+' conteúdos' : 'Limpar os textos'}).then(function(ok){
+    if(!ok){ toast('Cancelado: nada foi apagado'); return; }
+    try{ baixar('gravaitube-backup-antes-de-limpar-'+hoje()+'.json', backupJSON(), 'application/json'); }catch(e){}
+    var fim = function(msg){ S.cfg.roteiros = []; S.cfg.seedNotion = true; return salvarCfg().then(function(){ fecharModal(); toast(msg); render(); }); };
+    if(modo==='tudo'){
+      excluirLote(S.conteudos.slice(), {lixeira:false}).then(function(){ S.cfg.lixeira = []; return fim('Todos os conteúdos foram excluídos ('+n+')'); })
+        .catch(function(e){ alert('Não foi possível excluir: '+(e && e.message || e)); });
+    } else {
+      S.conteudos.forEach(function(c){ c.roteiro = ''; c.gancho = ''; c.legenda = ''; registrar(c, 'Textos limpos para recomeçar'); });
+      gravar('conteudos', S.conteudos).then(function(){ return fim('Textos limpos em '+n+' conteúdos'); });
+    }
+  });
 }
 function apagarVideos(ids){ return vTx('readwrite', function(st){ ids.forEach(function(i){ st.delete(i); }); }); }
 var EDITORES = {capcut:'CapCut', inshot:'InShot', vn:'VN', youcut:'YouCut', edits:'Edits (Instagram)', outro:'outro app de edição'};
@@ -3531,6 +3659,9 @@ function vAjustes(){
   [1,2,3,4,5,6,0].forEach(function(w){ var it = mo[w]||['','']; s += '<div class="row" style="margin:6px 0"><b style="width:44px">'+DIAS[w]+'</b><input type="text" data-mt="'+w+'" value="'+esc(it[0])+'" placeholder="Tipo de conteúdo" style="flex:2">'+
     '<select data-mf="'+w+'" style="flex:1;min-width:110px"><option value="">—</option>'+FORMATOS.map(function(f){ return '<option '+(it[1]===f?'selected':'')+'>'+f+'</option>'; }).join('')+'</select></div>'; });
   s += '<div class="row" style="margin-top:8px"><button class="btn" data-act="salvarModelo">💾 Salvar modelo</button><button class="btn acc" data-act="gerarMes">📅 Gerar próximo mês pelo modelo</button></div><p class="hint">Só cria Ideias nos dias em que este perfil ainda não tem conteúdo.</p></div>';
+  (function(){ var f = cfgFaxina(), par = parados(f.dias||14).length, dup = duplicados().length;
+    s += '<div class="card"><h2>🧹 Faxina e validade</h2><p class="sub">Duas skills cuidam do app: a <b>Validade automática</b> manda para a lixeira o que está parado há '+(f.dias||14)+' dias sem acesso e sem postar ('+(f.auto?'ligada':'desligada')+'), e a <b>Faxineira</b> mostra o peso do app, os duplicados e os conteúdos sem texto, e deixa você marcar e excluir o que quiser.</p>'+
+      '<p class="sub">'+S.conteudos.length+' conteúdos · '+fmtKB(pesoKB(S.conteudos))+' · '+par+' parados · '+dup+' duplicados · '+lixeiraLimpa().length+' na lixeira</p><button class="btn acc" data-act="faxina">🧹 Abrir a Faxina</button></div>'; })();
   s += '<div class="card"><h2>🧹 Recomeçar do zero</h2><p class="sub">Nova trajetória, novos canais: limpe os roteiros e os conteúdos antigos. Antes de apagar, o app baixa um backup completo no aparelho. Também limpa os roteiros avulsos do Estúdio. Imóveis, perfis e ajustes ficam.</p><button class="btn" data-act="recomecarTextos">Limpar só os textos (roteiro, gancho e descrição)</button> <button class="btn red" data-act="recomecarTudo">Excluir todos os conteúdos</button><p class="hint">Vídeos gravados: use 📁 Meus vídeos → 🧹 Limpeza.</p></div>';
   if(EDICAO==='anderson') s += '<div class="card"><h2><span class="panel-n">6</span>Importar do Notion</h2><div class="passo"><b class="n">⬇️</b><div class="grow"><b>Dados do Notion embutidos</b><div class="m">'+NOTION_SEED.length+' conteúdos lidos em 11/10/2026'+(S.cfg.seedNotion?' · já carregados':'')+'</div></div><button class="btn sm acc" data-act="carregarNotion">Carregar</button></div><p class="sub">Para trazer novidades depois: No Notion: abra o banco → ⋯ → Exportar → <b>Markdown e CSV</b>. Funciona com <b>Autoridade | Conteúdo 360°</b>, <b>PUBLICAÇÕES 360</b> e <b>Imóveis 360°</b>. Reimportar atualiza sem duplicar.</p>'+
     '<button class="btn acc" data-act="importar">📥 Escolher arquivo (.zip ou .csv)</button><details class="sec"><summary>Ou colar o CSV</summary><textarea id="csvCola" placeholder="Cole aqui o conteúdo do CSV"></textarea><div class="sp"></div><button class="btn" data-act="importarCola">Importar texto colado</button></details></div>';
@@ -3577,6 +3708,7 @@ function lerNovoPerfil(px){ return {rede:$('#'+px+'Rede').value, arroba:$('#'+px
 function editarConteudo(id, base){
   var c = id ? S.conteudos.filter(function(x){ return x.id===id; })[0] : (base && base.id && base.criadoEm ? JSON.parse(JSON.stringify(base)) : novoConteudo(base));
   if(!c) return;
+  if(id) marcarAcesso(c);
   var pks = S.cfg.perfis.map(function(p){ return p.k; }).concat(['definir','__novo']);
   var pls = S.cfg.perfis.map(rotuloPerfil).concat(['⚪ definir perfil','➕ Adicionar novo perfil…']);
   var yt = c.youtubeId ? S.conteudos.filter(function(x){ return x.id===c.youtubeId; })[0] : null;
@@ -3705,6 +3837,7 @@ function gerarDeImovel(m){
 function acoesRapidas(){
   abrirModal('<div class="mh"><h2>⚡ Ações rápidas</h2><button class="btn sm ghost x" data-act="fechar">✕</button></div><div class="list">'+
     '<div class="it" data-act="meusVideos"><b>📁</b><div class="grow"><div class="t">Meus vídeos</div><div class="m">Gravações guardadas e envio para o editor</div></div></div>'+
+    '<div class="it" data-act="faxina"><b>🧹</b><div class="grow"><div class="t">Faxina e validade</div><div class="m">Excluir conteúdos, duplicados e parados</div></div></div>'+
     '<div class="it" data-act="gravarLivre"><b>🎥</b><div class="grow"><div class="t">Gravar (câmera + teleprompter)</div><div class="m">Escolha o texto de qualquer conteúdo</div></div></div>'+
     '<div class="it" data-act="instalar"><b>📲</b><div class="grow"><div class="t">Instalar na tela inicial</div><div class="m">Atalho com o logo do app</div></div></div>'+
     '<div class="it" data-act="novo"><b>✍️</b><div class="grow"><div class="t">Novo conteúdo</div><div class="m">Abre o editor completo</div></div></div>'+
@@ -4134,6 +4267,7 @@ function acao(a){
     case 'revisarTextos': revisarTextos().then(function(r){ toast(r.alterados+' revisados, '+r.novos+' novos posts'); render(); }); break;
     case 'reutilizar': var cr = $('#eRoteiro') ? lerEditor() : null; if(cr) salvarConteudo(cr).then(function(){ telaReutilizar(cr); }); break;
     case 'lixeira': telaLixeira(); break;
+    case 'faxina': case 'fxTodos': case 'fxNenhum': case 'fxRodar': case 'fxEsvaziar': case 'fxExcluir': acaoFaxina(a); break;
     case 'aplicarReform': aplicarReformulados().then(function(n){ toast(n+' roteiros completados ✔'); render(); }); break;
     case 'gravarLivre': fecharModal(); abrirEstudio(null); break;
     case 'copiarTexto': copiar($('#eRoteiro').value); break;
@@ -4157,10 +4291,11 @@ function acao(a){
       salvarConteudo(d2).then(function(){ toast(c.perene?'Pronto para republicar: escolha a data':'Duplicado'); editarConteudo(d2.id); });
       break;
     case 'excluirC':
-      c = editarConteudo.atual; if(!confirm('Mover "'+c.titulo+'" para a lixeira? Fica lá por 30 dias e dá para desfazer.')) break;
-      var lig = S.conteudos.filter(function(x){ return x.youtubeId===c.id || x.origemId===c.id; });
-      lig.forEach(function(x){ if(x.youtubeId===c.id) x.youtubeId=''; if(x.origemId===c.id) x.origemId=''; });
-      Promise.all([gravar('conteudos', lig), excluirConteudo(c)]).then(function(){ limparRascunho(); fecharModal(); toastAcao('Movido para a lixeira (30 dias)','Desfazer',desfazerGlobal); render(); });
+      c = editarConteudo.atual; if(!c || !S.conteudos.some(function(x){ return x.id===c.id; })){ limparRascunho(); fecharModal(); toast('Conteúdo novo descartado'); break; }
+      (function(c){ confirmarApp({titulo:'🗑️ Excluir conteúdo', texto:'Mover <b>'+esc(c.titulo||'(sem título)')+'</b> para a lixeira? Fica lá por 30 dias e dá para restaurar.', botao:'Excluir', dica:'Toque duas vezes no botão vermelho para excluir.', voltar:function(){ editarConteudo(c.id); }}).then(function(ok){
+        if(!ok) return; registrarHist(c, null, 'exclusão de "'+c.titulo+'"');
+        excluirLote([c], {lixeira:true}).then(function(){ limparRascunho(); fecharModal(); toastAcao('Movido para a lixeira (30 dias)','Desfazer',desfazerGlobal); render(); });
+      }); })(c);
       break;
     case 'salvarCamp':
       m = lerCampanha(); if(!m.nome){ toast('Dê um nome à campanha'); break; }
@@ -4218,8 +4353,11 @@ function acao(a){
     case 'restaurar': $('#fileRestore').value=''; $('#fileRestore').click(); break;
     case 'relatorio': var r = relatorio(); copiar(r); abrirModal('<div class="mh"><h2>📊 Relatório</h2><button class="btn sm ghost x" data-act="fechar">✕</button></div><textarea style="min-height:280px" readonly>'+esc(r)+'</textarea><p class="hint">Já copiado.</p>'); break;
     case 'zerar':
-      var conf = prompt('Isso apaga TODOS os dados deste aparelho. Digite APAGAR para confirmar.');
-      if(conf==='APAGAR') zerar().then(function(){ toast('Dados apagados'); UI.view='painel'; render(); });
+      confirmarApp({titulo:'🗑️ Apagar todos os dados', texto:'Apaga <b>tudo</b> deste aparelho: '+S.conteudos.length+' conteúdos, '+S.imoveis.length+' imóveis, perfis, campanhas e ajustes. Antes, o app baixa um backup completo para a pasta Downloads. Os vídeos gravados ficam em 📁 Meus vídeos.', botao:'Apagar tudo'}).then(function(ok){
+        if(!ok){ toast('Cancelado: nada foi apagado'); return; }
+        try{ baixar('gravaitube-backup-antes-de-zerar-'+hoje()+'.json', backupJSON(), 'application/json'); }catch(e){}
+        zerar().then(function(){ fecharModal(); toast('Dados apagados. O app está zerado.'); UI.view='painel'; render(); }).catch(function(e){ alert('Não foi possível apagar: '+(e && e.message || e)); });
+      });
       break;
   }
 }
@@ -4257,6 +4395,7 @@ function iniciar(){
     if(S.conteudos.length && S.cfg.rev410 && !S.cfg.rev510){ S.cfg.rev510 = true; salvarCfg(); setTimeout(function(){ planejarTudo().then(function(r){ render(); if(r && r.alteracoes) toastAcao('📏 Regra 360 aplicada: 5 Reels, 2 posts, 1 carrossel e Stories por semana, tudo no tema da semana; YouTube 1 por canal.', 'Ver semana', function(){ UI.view='coord'; UI.coordAba='semana'; render(); }); }); }, 900); }
     if(S.conteudos.length && !S.cfg.rev393){ S.cfg.rev393 = true; salvarCfg(); setTimeout(function(){ revisarTudo393().then(function(r){ render(); if(r && r.alteracoes) toastAcao('🔎 '+(r.ganchos+r.titulos+r.textos+r.imoveis)+' títulos, ganchos e textos revisados', 'Ver', function(){ telaRevisao393(r); }); }); }, 2500); }
     setTimeout(checarAtualizacao, 1500);
+    setTimeout(function(){ if(S.conteudos.length) rodarValidade(false).catch(function(){}); }, 3500);
   }).catch(function(err){
     $('#app').innerHTML = '<div class="card"><h2>Não foi possível abrir o banco local</h2><p class="sub">'+esc(err && err.message || err)+'</p><p class="sub">Abra o arquivo no Chrome (não no visualizador de arquivos).</p></div>';
   });
